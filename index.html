@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>カウントダウン/ストップウォッチタイマー</title>
+    <!-- Tailwind CSS CDNを読み込み -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts Material Icons CDNを読み込み -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        /* Interフォントを適用 */
+        body {
+            font-family: "Inter", sans-serif;
+            background-color: #f0f4f8; /* 背景色 */
+            /* 全画面表示と中央揃え */
+            width: 100vw;
+            height: 100vh;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding-top: 1rem; /* プログレスバーの高さ分パディングを追加 */
+            padding-bottom: 1rem;
+            padding-left: 1rem;
+            padding-right: 1rem;
+            overflow: hidden; /* スクロールバーを非表示 */
+        }
+        /* タイマー表示のスタイル */
+        #timerDisplay {
+            font-variant-numeric: tabular-nums; /* 数字の幅を揃える */
+            /* 全画面表示に合わせてフォントサイズを大きくする */
+            font-size: 10rem; /* 160px */
+            line-height: 1;
+            margin-bottom: 2rem;
+            /* アニメーションの初期状態 */
+            transform: scale(1);
+            opacity: 1;
+            text-shadow: none;
+            transition: color 0.5s ease-in-out; /* 色の変化を滑らかに */
+        }
+        /* 入力フィールドのスタイル */
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield;
+            font-size: 4rem; /* 入力フィールドのフォントサイズも大きくする */
+            width: 10rem; /* 幅を調整 */
+            padding: 1rem;
+        }
+        /* コロンのフォントサイズも大きくする */
+        #timeInputContainer span {
+            font-size: 4rem;
+        }
+        /* ボタンの配置を調整 */
+        .flex-wrap {
+            flex-wrap: wrap;
+        }
+        .gap-4 {
+            gap: 1.5rem; /* ボタン間のスペースを調整 */
+        }
+        /* アイコンボタンのパディングを調整 */
+        .icon-button {
+            padding: 1.5rem; /* アイコンに合わせてパディングを均等に */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .icon-button svg {
+            width: 3rem; /* アイコンのサイズを調整 */
+            height: 3rem;
+        }
+        /* Material Iconsのサイズ調整 */
+        .icon-button .material-icons {
+            font-size: 3rem; /* アイコンのサイズを調整 */
+            line-height: 1; /* 行の高さを調整して中央揃えを改善 */
+        }
+
+        /* 数字切り替えアニメーションのキーフレーム */
+        @keyframes number-pop {
+            0% {
+                transform: scale(1);
+                opacity: 1;
+                text-shadow: none;
+            }
+            50% {
+                transform: scale(1.01); /* わずかに拡大 */
+                opacity: 0.9;
+                text-shadow: 0 0 10px rgba(0, 0, 255, 0.5); /* 青い光 */
+            }
+            100% {
+                transform: scale(1);
+                opacity: 1;
+                text-shadow: none;
+            }
+        }
+
+        /* アニメーションを適用するクラス */
+        #timerDisplay.animate-number-change {
+            animation: number-pop 0.3s ease-out; /* 0.3秒のアニメーション */
+        }
+        /* プログレスバーの色変化を滑らかに */
+        #progressBar {
+            transition: background-color 0.5s ease-in-out;
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen p-4">
+    <!-- 残り時間のプログレスバー -->
+    <div id="progressBarContainer" class="fixed top-0 left-0 w-full h-2 bg-gray-300 z-50 hidden">
+        <div id="progressBar" class="h-full bg-blue-500 transition-all duration-1000 ease-linear"></div>
+    </div>
+
+    <!-- 時間設定入力部分 (カウントダウンモードのみ表示) -->
+    <div id="timeInputContainer" class="flex justify-center items-center gap-4 mb-6">
+        <input type="number" id="minutesInput" value="0" min="0" max="59" class="p-3 border-2 border-blue-300 rounded-xl text-center font-semibold focus:outline-none focus:ring-4 focus:ring-blue-200">
+        <span class="font-bold text-gray-700">:</span>
+        <input type="number" id="secondsInput" value="0" min="0" max="59" class="p-3 border-2 border-blue-300 rounded-xl text-center font-semibold focus:outline-none focus:ring-4 focus:ring-blue-200">
+    </div>
+
+    <!-- タイマー表示部分 -->
+    <div id="timerDisplay" class="font-bold text-blue-600 tracking-wide">
+        00:00
+    </div>
+
+    <!-- コントロールボタン -->
+    <div class="flex flex-wrap justify-center gap-4 mt-8">
+        <button id="toggleButton" class="icon-button bg-green-500 hover:bg-green-600 text-white font-bold rounded-xl shadow-lg transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-green-300">
+            <svg id="playIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            <svg id="pauseIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-pause hidden"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+        </button>
+        <button id="resetButton" class="icon-button bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl shadow-lg transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-red-300" disabled>
+            <span class="material-icons">autorenew</span>
+        </button>
+        <button id="modeToggleButton" class="icon-button bg-gray-600 hover:bg-gray-700 text-white font-bold rounded-xl shadow-lg transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-gray-300">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-left-right"><path d="M8 3L4 7L8 11"/><path d="M4 7H20"/><path d="M16 21L20 17L16 13"/><path d="M20 17H4"/></svg>
+        </button>
+    </div>
+
+    <!-- アラーム音用のオーディオ要素 -->
+    <audio id="alarmSound" src="ale.mp3" loop preload="auto"></audio>
+
+    <script>
+        // DOM要素の取得
+        const minutesInput = document.getElementById('minutesInput');
+        const secondsInput = document.getElementById('secondsInput');
+        const timeInputContainer = document.getElementById('timeInputContainer');
+        const timerDisplay = document.getElementById('timerDisplay');
+        const toggleButton = document.getElementById('toggleButton');
+        const resetButton = document.getElementById('resetButton');
+        const modeToggleButton = document.getElementById('modeToggleButton');
+        const playIcon = document.getElementById('playIcon'); // 再生アイコン
+        const pauseIcon = document.getElementById('pauseIcon'); // 一時停止アイコン
+        const progressBarContainer = document.getElementById('progressBarContainer'); // プログレスバーコンテナ
+        const progressBar = document.getElementById('progressBar'); // プログレスバー本体
+        const alarmSound = document.getElementById('alarmSound'); // アラーム音のオーディオ要素
+
+        let totalDuration = 0; // カウントダウンモードでの設定された合計時間（ミリ秒）
+        let remainingTime = 0; // カウントダウンモードでの残り時間（ミリ秒）
+        let startTime; // ストップウォッチモードでの開始時刻
+        let elapsedTime = 0; // ストップウォッチモードでの経過時間（ミリ秒）
+        let timerInterval; // setIntervalのID
+        let isRunning = false; // タイマーが動作中かどうかのフラグ
+        let currentMode = 'countdown'; // 現在のモード ('countdown' または 'stopwatch')
+
+        // アニメーションをトリガーするための状態変数
+        let lastDisplayedSeconds = -1;
+        let lastDisplayedMinutes = -1;
+
+        // Tone.jsは不要になったため削除
+        // const synth = new Tone.Synth().toDestination();
+
+        /**
+         * カウントダウンモードの時間をフォーマットする関数 (MM:SS)
+         * @param {number} ms - ミリ秒
+         * @returns {string} フォーマットされた時間文字列 (MM:SS)
+         */
+        function formatCountdownTime(ms) {
+            const totalSeconds = Math.floor(ms / 1000);
+            const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
+            const seconds = String(totalSeconds % 60).padStart(2, '0');
+            return `${minutes}:${seconds}`;
+        }
+
+        /**
+         * ストップウォッチモードの時間をフォーマットする関数 (HH:MM:SS.mmm)
+         * @param {number} ms - ミリ秒
+         * @returns {string} フォーマットされた時間文字列 (HH:MM:SS.mmm)
+         */
+        function formatStopwatchTime(ms) {
+            const hours = String(Math.floor(ms / (1000 * 60 * 60))).padStart(2, '0');
+            const minutes = String(Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60))).padStart(2, '0');
+            const seconds = String(Math.floor((ms % (1000 * 60)) / 1000)).padStart(2, '0');
+            const milliseconds = String(Math.floor((ms % 1000))).padStart(3, '0');
+            return `${hours}:${minutes}:${seconds}.${milliseconds}`;
+        }
+
+        /**
+         * アニメーションをトリガーする関数
+         */
+        function triggerAnimation() {
+            timerDisplay.classList.remove('animate-number-change'); // アニメーションを再トリガーするために一度削除
+            // 強制的にリフローさせてアニメーションを再開させる
+            void timerDisplay.offsetWidth;
+            timerDisplay.classList.add('animate-number-change');
+        }
+
+        /**
+         * タイマー表示を更新する関数
+         */
+        function updateTimerDisplay() {
+            let newTime;
+            let currentSeconds;
+            let currentMinutes;
+
+            if (currentMode === 'countdown') {
+                newTime = formatCountdownTime(remainingTime);
+                currentMinutes = Math.floor(remainingTime / 1000 / 60);
+                currentSeconds = Math.floor((remainingTime / 1000) % 60);
+
+                // 分または秒が変化した場合にアニメーションをトリガー
+                if (currentMinutes !== lastDisplayedMinutes || currentSeconds !== lastDisplayedSeconds) {
+                    triggerAnimation();
+                    lastDisplayedMinutes = currentMinutes;
+                    lastDisplayedSeconds = currentSeconds;
+                }
+
+                // 残り1分以下で数字とプログレスバーを赤くする
+                if (remainingTime <= 60000 && remainingTime > 0) {
+                    timerDisplay.classList.add('text-red-600');
+                    timerDisplay.classList.remove('text-blue-600');
+                    progressBar.classList.add('bg-red-500');
+                    progressBar.classList.remove('bg-blue-500');
+                } else {
+                    timerDisplay.classList.remove('text-red-600');
+                    timerDisplay.classList.add('text-blue-600');
+                    progressBar.classList.remove('bg-red-500');
+                    progressBar.classList.add('bg-blue-500');
+                }
+
+                // プログレスバーを更新
+                if (totalDuration > 0) {
+                    const progressPercentage = (remainingTime / totalDuration) * 100;
+                    progressBar.style.width = `${progressPercentage}%`;
+                    progressBarContainer.classList.remove('hidden');
+                } else {
+                    progressBar.style.width = '100%'; // 時間が設定されていない場合は満タン
+                    progressBarContainer.classList.add('hidden'); // 非表示
+                }
+
+            } else { // stopwatch
+                newTime = formatStopwatchTime(elapsedTime);
+                currentSeconds = Math.floor((elapsedTime / 1000) % 60);
+
+                // 秒が変化した場合にアニメーションをトリガー
+                if (currentSeconds !== lastDisplayedSeconds) {
+                    triggerAnimation();
+                    lastDisplayedSeconds = currentSeconds;
+                }
+                // ストップウォッチモードでは常に青色
+                timerDisplay.classList.remove('text-red-600');
+                timerDisplay.classList.add('text-blue-600');
+                progressBarContainer.classList.add('hidden'); // ストップウォッチモードではプログレスバーを非表示
+            }
+            timerDisplay.textContent = newTime;
+        }
+
+        /**
+         * カウントダウンを更新する関数
+         */
+        function updateCountdown() {
+            remainingTime -= 1000; // 1秒減らす
+            if (remainingTime <= 0) {
+                remainingTime = 0; // マイナスにならないようにする
+                clearInterval(timerInterval);
+                isRunning = false;
+                playAlarmSound(); // アラーム音を鳴らす
+                // ボタンと入力フィールドの状態を更新
+                playIcon.classList.remove('hidden'); // 再生アイコンを表示
+                pauseIcon.classList.add('hidden'); // 一時停止アイコンを非表示
+                toggleButton.classList.remove('bg-yellow-500', 'hover:bg-yellow-600', 'focus:ring-yellow-300');
+                toggleButton.classList.add('bg-green-500', 'hover:bg-green-600', 'focus:ring-green-300');
+                resetButton.disabled = false;
+                minutesInput.disabled = false;
+                secondsInput.disabled = false;
+                progressBar.style.width = '0%'; // 終了したらプログレスバーを0に
+                progressBar.classList.remove('bg-red-500'); // 赤色をリセット
+                progressBar.classList.add('bg-blue-500'); // 青色に戻す
+            }
+            updateTimerDisplay(); // 表示を更新
+        }
+
+        /**
+         * ストップウォッチを更新する関数
+         */
+        function updateStopwatch() {
+            elapsedTime = Date.now() - startTime;
+            updateTimerDisplay();
+        }
+
+        /**
+         * タイマーを開始する関数
+         */
+        function startTimer() {
+            stopAlarmSound(); // アラームが鳴っている場合は停止する
+
+            if (!isRunning) {
+                isRunning = true;
+                if (currentMode === 'countdown') {
+                    // 初めて開始する場合、またはリセット後に開始する場合
+                    if (remainingTime === 0 && totalDuration === 0) {
+                        const minutes = parseInt(minutesInput.value) || 0;
+                        const seconds = parseInt(secondsInput.value) || 0;
+                        totalDuration = (minutes * 60 + seconds) * 1000;
+                        remainingTime = totalDuration;
+                    } else if (remainingTime === 0 && totalDuration > 0) {
+                        // ゼロになった後に再度開始する場合（リセットせずに）
+                        remainingTime = totalDuration;
+                    }
+
+                    if (remainingTime <= 0) {
+                        // 時間が設定されていない場合は何もしない
+                        isRunning = false; // 開始できないのでフラグを戻す
+                        return;
+                    }
+                    timerInterval = setInterval(updateCountdown, 1000); // 1秒ごとに更新
+                    minutesInput.disabled = true;
+                    secondsInput.disabled = true;
+                    progressBarContainer.classList.remove('hidden'); // プログレスバーを表示
+                } else { // stopwatch
+                    startTime = Date.now() - elapsedTime; // 停止からの再開を考慮
+                    timerInterval = setInterval(updateStopwatch, 10); // 10ミリ秒ごとに更新
+                    minutesInput.disabled = true; // ストップウォッチモードでは無効化
+                    secondsInput.disabled = true; // ストップウォッチモードでは無効化
+                    progressBarContainer.classList.add('hidden'); // ストップウォッチモードではプログレスバーを非表示
+                }
+
+                // ボタンの状態を更新
+                playIcon.classList.add('hidden'); // 再生アイコンを非表示
+                pauseIcon.classList.remove('hidden'); // 一時停止アイコンを表示
+                toggleButton.classList.remove('bg-green-500', 'hover:bg-green-600', 'focus:ring-green-300');
+                toggleButton.classList.add('bg-yellow-500', 'hover:bg-yellow-600', 'focus:ring-yellow-300');
+                resetButton.disabled = false;
+                updateTimerDisplay(); // 開始時に表示を更新してプログレスバーを初期化
+            }
+        }
+
+        /**
+         * タイマーを一時停止する関数
+         */
+        function pauseTimer() {
+            if (isRunning) {
+                clearInterval(timerInterval); // タイマーを停止
+                isRunning = false;
+
+                // ボタンの状態を更新
+                playIcon.classList.remove('hidden'); // 再生アイコンを表示
+                pauseIcon.classList.add('hidden'); // 一時停止アイコンを非表示
+                toggleButton.classList.remove('bg-yellow-500', 'hover:bg-yellow-600', 'focus:ring-yellow-300');
+                toggleButton.classList.add('bg-green-500', 'hover:bg-green-600', 'focus:ring-green-300');
+                // カウントダウンモードの場合のみ入力フィールドを有効化
+                if (currentMode === 'countdown') {
+                    minutesInput.disabled = false;
+                    secondsInput.disabled = false;
+                }
+            }
+        }
+
+        /**
+         * タイマーをリセットする関数
+         */
+        function resetTimer() {
+            clearInterval(timerInterval); // タイマーを停止
+            isRunning = false;
+            stopAlarmSound(); // アラームが鳴っている場合は停止する
+
+            if (currentMode === 'countdown') {
+                totalDuration = 0; // 設定時間をリセット
+                remainingTime = 0; // 残り時間をリセット
+                minutesInput.value = 0; // 入力フィールドをリセット
+                secondsInput.value = 0; // 入力フィールドをリセット
+                minutesInput.disabled = false;
+                secondsInput.disabled = false;
+                progressBar.style.width = '100%'; // プログレスバーを初期状態に戻す
+                progressBar.classList.remove('bg-red-500'); // 赤色をリセット
+                progressBar.classList.add('bg-blue-500'); // 青色に戻す
+                progressBarContainer.classList.add('hidden'); // カウントダウンモード初期は非表示
+            } else { // stopwatch
+                elapsedTime = 0; // 経過時間をリセット
+                progressBarContainer.classList.add('hidden'); // ストップウォッチモードでは非表示
+            }
+            updateTimerDisplay(); // 表示をリセット
+
+            // アニメーション状態変数をリセット
+            lastDisplayedSeconds = -1;
+            lastDisplayedMinutes = -1;
+
+            // ボタンの状態を更新
+            playIcon.classList.remove('hidden'); // 再生アイコンを表示
+            pauseIcon.classList.add('hidden'); // 一時停止アイコンを非表示
+            toggleButton.classList.remove('bg-yellow-500', 'hover:bg-yellow-600', 'focus:ring-yellow-300');
+            toggleButton.classList.add('bg-green-500', 'hover:bg-green-600', 'focus:ring-green-300');
+            resetButton.disabled = true;
+        }
+
+        /**
+         * アラーム音を鳴らす関数 (カウントダウンモードのみ)
+         */
+        function playAlarmSound() {
+            if (currentMode === 'countdown') {
+                alarmSound.play().catch(error => {
+                    console.error("アラーム音の再生に失敗しました:", error);
+                    // ユーザーの操作なしに自動再生がブロックされる場合があるため、エラーハンドリング
+                    // ユーザーが一度ボタンをクリックするなどして、オーディオコンテキストを有効にする必要がある場合があります。
+                });
+            }
+        }
+
+        /**
+         * アラーム音を停止する関数
+         */
+        function stopAlarmSound() {
+            alarmSound.pause();
+            alarmSound.currentTime = 0; // 再生位置をリセット
+        }
+
+        /**
+         * モードを切り替える関数
+         */
+        function toggleMode() {
+            resetTimer(); // モード切り替え時はタイマーをリセット
+
+            if (currentMode === 'countdown') {
+                currentMode = 'stopwatch';
+                // Lucide Iconsのタイマーアイコンに切り替え
+                modeToggleButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-timer"><path d="M10 2h4"/><path d="M12 14v4"/><path d="M4.93 4.93L6.34 6.34"/><path d="M17.66 17.66L19.07 19.07"/><path d="M2 12a10 10 0 1 0 10-10A10 10 0 0 0 2 12Z"/></svg>';
+                timeInputContainer.classList.add('hidden'); // 入力フィールドを非表示
+                timerDisplay.textContent = formatStopwatchTime(0); // ストップウォッチの初期表示
+                progressBarContainer.classList.add('hidden'); // ストップウォッチモードではプログレスバーを非表示
+            } else { // currentMode === 'stopwatch'
+                currentMode = 'countdown';
+                // Lucide Iconsの左右矢印アイコンに切り替え
+                modeToggleButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-left-right"><path d="M8 3L4 7L8 11"/><path d="M4 7H20"/><path d="M16 21L20 17L16 13"/><path d="M20 17H4"/></svg>';
+                timeInputContainer.classList.remove('hidden'); // 入力フィールドを表示
+                timerDisplay.textContent = formatCountdownTime(0); // カウントダウンの初期表示
+                // カウントダウンモードに切り替わった際、時間が設定されていればプログレスバーを表示
+                if (totalDuration > 0) {
+                    progressBarContainer.classList.remove('hidden');
+                }
+            }
+            // モード切り替え後も開始ボタンは「開始」状態、リセットボタンは無効
+            playIcon.classList.remove('hidden'); // 再生アイコンを表示
+            pauseIcon.classList.add('hidden'); // 一時停止アイコンを非表示
+            toggleButton.classList.remove('bg-yellow-500', 'hover:bg-yellow-600', 'focus:ring-yellow-300');
+            toggleButton.classList.add('bg-green-500', 'hover:bg-green-600', 'focus:ring-green-300');
+            resetButton.disabled = true;
+
+            // アニメーション状態変数をリセット
+            lastDisplayedSeconds = -1;
+            lastDisplayedMinutes = -1;
+        }
+
+        // イベントリスナーの設定
+        toggleButton.addEventListener('click', () => {
+            if (isRunning) {
+                pauseTimer();
+            } else {
+                startTimer();
+            }
+        });
+        resetButton.addEventListener('click', resetTimer);
+        modeToggleButton.addEventListener('click', toggleMode);
+
+        // 初期表示を更新
+        updateTimerDisplay();
+    </script>
+</body>
+</html>
